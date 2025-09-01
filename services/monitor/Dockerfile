@@ -1,5 +1,5 @@
 # Needs to be run from the project root context e.g. `cd sourcify/ && docker build -f services/monitor/Dockerfile .`
-FROM node:22.5.1-bullseye as builder
+FROM node:22.5.1-bookworm as builder
 RUN mkdir -p /home/app
 WORKDIR /home/app
 
@@ -11,7 +11,7 @@ RUN npx lerna run build --scope sourcify-monitor
 ######################
 ## Production image ##
 ######################
-FROM node:22.5.1-bullseye-slim as production
+FROM node:22.5.1-bookworm-slim as production
 
 RUN mkdir -p /home/app/services/monitor
 
@@ -25,7 +25,7 @@ COPY --from=builder /home/app/packages/ ./packages/
 COPY --from=builder /home/app/services/monitor/ ./services/monitor/
 
 RUN npm ci --workspace=sourcify-monitor --include-workspace-root --omit=dev
-LABEL org.opencontainers.image.source https://github.com/ethereum/sourcify
+LABEL org.opencontainers.image.source https://github.com/argotorg/sourcify
 LABEL org.opencontainers.image.licenses MIT
 
 ARG ALCHEMY_API_KEY

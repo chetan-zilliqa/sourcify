@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## sourcify-monitor@1.3.19 - 2025-08-25
+
+- Update dependencies
+
+## sourcify-monitor@1.3.18 - 2025-08-12
+
+- Update Dockerfiles from Bullseye to Bookworm for Vyper compiler compatibility (#2289)
+
+## sourcify-monitor@1.3.17 - 2025-08-11
+
+- update dependencies
+
+## sourcify-monitor@1.3.16 - 2025-08-04
+
+- update dependencies
+
+## sourcify-monitor@1.3.15 - 2025-07-09
+
+- update dependencies
+
+## sourcify-monitor@1.3.14 - 2025-06-18
+
+- Update packages
+
+## sourcify-monitor@1.3.13 - 2025-05-20
+
+- update dependencies
+
+## sourcify-monitor@1.3.12 - 2025-05-12
+
+- Update dependencies
+
+## sourcify-monitor@1.3.11 - 2025-05-06
+
+- update dependencies
+
+## sourcify-monitor@1.3.10 - 2025-04-30
+
+- Add Ethereum Testnet Hoodi (560048) to monitored chains
+- Update dependencies
+
+## sourcify-monitor@1.3.9 - 2025-04-09
+
+- Update dependencies
+- Use the new `FetchRequestRPC`
+
+## sourcify-monitor@1.3.8 - 2025-03-19
+
+- Update dependencies
+
 ## sourcify-monitor@1.3.7 - 2025-02-18
 
 - Add Zircuit mainnet (48900) to monitored chains
@@ -13,7 +63,6 @@ All notable changes to this project will be documented in this file.
 ## sourcify-monitor@1.3.5 - 2025-01-08
 
 - Update dependencies
-
 
 ## sourcify-monitor@1.3.4 - 2024-12-11
 
@@ -131,4 +180,4 @@ This was a total rewrite of the sourcify-monitor as a completely isolated module
 ## Older releases
 
 Previously, the releases were not done one separate modules of Sourcify but for the repository as a whole.
-You can find the changelog for those releases in [older releases](https://github.com/ethereum/sourcify/releases) for this repository.
+You can find the changelog for those releases in [older releases](https://github.com/argotorg/sourcify/releases) for this repository.

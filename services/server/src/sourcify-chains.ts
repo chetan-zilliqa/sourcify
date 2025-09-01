@@ -1,14 +1,13 @@
 import {
   SourcifyChain,
   SourcifyChainMap,
-  SourcifyChainsExtensionsObject,
   Chain,
   APIKeyRPC,
   FetchRequestRPC,
   BaseRPC,
   TraceSupportedRPC,
+  SourcifyChainExtension,
 } from "@ethereum-sourcify/lib-sourcify";
-import { FetchRequest } from "ethers";
 import chainsRaw from "./chains.json";
 import rawSourcifyChainExtentions from "./sourcify-chains-default.json";
 import logger from "./common/logger";
@@ -19,7 +18,27 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-let sourcifyChainsExtensions: SourcifyChainsExtensionsObject = {};
+// Extended type for FetchRequestRPC with headerEnvName
+type FetchRequestRPCWithHeaderEnvName = Omit<FetchRequestRPC, "headers"> & {
+  headers?: Array<{
+    headerName: string;
+    headerValue?: string;
+    headerEnvName?: string;
+  }>;
+};
+
+// Extended type for SourcifyChainsExtensionsObject that uses FetchRequestRPCWithHeaderEnvName
+
+interface SourcifyChainsExtensionsObjectWithHeaderEnvName {
+  [chainId: string]: Omit<SourcifyChainExtension, "rpc"> & {
+    rpc?: Array<
+      string | BaseRPC | APIKeyRPC | FetchRequestRPCWithHeaderEnvName
+    >;
+  };
+}
+
+let sourcifyChainsExtensions: SourcifyChainsExtensionsObjectWithHeaderEnvName =
+  {};
 
 // If sourcify-chains.json exists, override sourcify-chains-default.json
 if (fs.existsSync(path.resolve(__dirname, "./sourcify-chains.json"))) {
@@ -32,12 +51,12 @@ if (fs.existsSync(path.resolve(__dirname, "./sourcify-chains.json"))) {
   );
   sourcifyChainsExtensions = JSON.parse(
     rawSourcifyChainExtentionsFromFile,
-  ) as SourcifyChainsExtensionsObject;
+  ) as SourcifyChainsExtensionsObjectWithHeaderEnvName;
 }
 // sourcify-chains-default.json
 else {
   sourcifyChainsExtensions =
-    rawSourcifyChainExtentions as SourcifyChainsExtensionsObject;
+    rawSourcifyChainExtentions as SourcifyChainsExtensionsObjectWithHeaderEnvName;
 }
 
 // chains.json from ethereum-lists (chainId.network/chains.json)
@@ -75,29 +94,35 @@ export const LOCAL_CHAINS: SourcifyChain[] = [
  * SourcifyChain expects  url strings or ethers.js FetchRequest objects.
  */
 function buildCustomRpcs(
-  sourcifyRpcs: Array<string | BaseRPC | APIKeyRPC | FetchRequestRPC>,
+  sourcifyRpcs: Array<
+    string | BaseRPC | APIKeyRPC | FetchRequestRPCWithHeaderEnvName
+  >,
 ) {
   const traceSupportedRPCs: TraceSupportedRPC[] = [];
-  const rpc: (string | FetchRequest)[] = [];
+  const rpc: (string | FetchRequestRPCWithHeaderEnvName)[] = [];
   const rpcWithoutApiKeys: string[] = [];
+  const rpcWithApiKeyMasked: string[] = [];
+  const skippedRPCs: any[] = [];
   sourcifyRpcs.forEach((sourcifyRpc, index) => {
     // simple url, can't have traceSupport
     if (typeof sourcifyRpc === "string") {
       rpc.push(sourcifyRpc);
       rpcWithoutApiKeys.push(sourcifyRpc);
+      rpcWithApiKeyMasked.push(sourcifyRpc);
       return;
     }
 
     if (sourcifyRpc.traceSupport) {
       traceSupportedRPCs.push({
         type: sourcifyRpc.traceSupport,
-        index,
+        index: index - skippedRPCs.length,
       });
     }
 
     if (sourcifyRpc.type === "BaseRPC") {
       rpc.push(sourcifyRpc.url);
       rpcWithoutApiKeys.push(sourcifyRpc.url);
+      rpcWithApiKeyMasked.push(sourcifyRpc.url);
       return;
     }
     // Fill in the api keys
@@ -113,35 +138,37 @@ function buildCustomRpcs(
           logger.warn(
             `API key not found for ${sourcifyRpc.apiKeyEnvName} on ${sourcifyRpc.url}, skipping on CI or development`,
           );
+          skippedRPCs.push(index);
           return;
         } else {
           throw new Error(`API key not found for ${sourcifyRpc.apiKeyEnvName}`);
         }
       }
-      let url = sourcifyRpc.url.replace("{API_KEY}", apiKey);
+      let secretUrl = sourcifyRpc.url.replace("{API_KEY}", apiKey);
+      const maskedApiKey =
+        apiKey.length > 4
+          ? apiKey.slice(0, 4) + "*".repeat(apiKey.length - 4)
+          : "*".repeat(apiKey.length);
+      let maskedUrl = sourcifyRpc.url.replace("{API_KEY}", maskedApiKey);
 
       const subDomain = process.env[sourcifyRpc.subDomainEnvName || ""];
       if (subDomain) {
         // subDomain is optional
-        url = url.replace("{SUBDOMAIN}", subDomain);
+        secretUrl = secretUrl.replace("{SUBDOMAIN}", subDomain);
+        const maskedSubDomain =
+          subDomain.length > 4
+            ? subDomain.slice(0, 4) + "*".repeat(subDomain.length - 4)
+            : "*".repeat(subDomain.length);
+        maskedUrl = maskedUrl.replace("{SUBDOMAIN}", maskedSubDomain);
       }
-      rpc.push(url);
+      rpc.push(secretUrl);
       rpcWithoutApiKeys.push(sourcifyRpc.url);
+      rpcWithApiKeyMasked.push(maskedUrl);
       return;
-    }
-    // Build ethers.js FetchRequest object for custom rpcs with auth headers
-    else if (sourcifyRpc.type === "FetchRequest") {
-      const ethersFetchReq = new FetchRequest(sourcifyRpc.url);
-      ethersFetchReq.setHeader("Content-Type", "application/json");
-      const headers = sourcifyRpc.headers;
-      if (headers) {
-        headers.forEach(({ headerName, headerEnvName }) => {
-          const headerValue = process.env[headerEnvName];
-          ethersFetchReq.setHeader(headerName, headerValue || "");
-        });
-      }
-      rpc.push(ethersFetchReq);
+    } else if (sourcifyRpc.type === "FetchRequest") {
+      rpc.push(sourcifyRpc);
       rpcWithoutApiKeys.push(sourcifyRpc.url);
+      rpcWithApiKeyMasked.push(sourcifyRpc.url);
       return;
     }
     throw new Error(`Invalid rpc type: ${JSON.stringify(sourcifyRpc)}`);
@@ -149,6 +176,7 @@ function buildCustomRpcs(
   return {
     rpc,
     rpcWithoutApiKeys,
+    rpcWithApiKeyMasked,
     traceSupportedRPCs:
       traceSupportedRPCs.length > 0 ? traceSupportedRPCs : undefined,
   };
@@ -166,8 +194,7 @@ if (process.env.NODE_ENV !== "production") {
 // iterate over chainid.network's chains.json file and get the chains included in sourcify-chains.json.
 // Merge the chains.json object with the values from sourcify-chains.json
 // Must iterate over all chains because it's not a mapping but an array.
-for (const i in allChains) {
-  const chain = allChains[i];
+for (const chain of allChains) {
   const chainId = chain.chainId;
   if (chainId in sourcifyChainsMap) {
     // Don't throw on test chains in development, override the chain.json item as test chains are found in chains.json.
@@ -185,27 +212,39 @@ for (const i in allChains) {
   if (chainId in sourcifyChainsExtensions) {
     const sourcifyExtension = sourcifyChainsExtensions[chainId];
 
-    let rpc: (string | FetchRequest)[] = [];
+    let rpc: (string | FetchRequestRPCWithHeaderEnvName)[] = [];
     let rpcWithoutApiKeys: string[] = [];
+    let rpcWithApiKeyMasked: string[] = [];
     let traceSupportedRPCs: TraceSupportedRPC[] | undefined = undefined;
     if (sourcifyExtension.rpc) {
-      ({ rpc, rpcWithoutApiKeys, traceSupportedRPCs } = buildCustomRpcs(
-        sourcifyExtension.rpc,
-      ));
+      ({ rpc, rpcWithoutApiKeys, rpcWithApiKeyMasked, traceSupportedRPCs } =
+        buildCustomRpcs(sourcifyExtension.rpc));
     }
     // Fallback to rpcs of chains.json
     if (!rpc.length) {
-      ({ rpc, rpcWithoutApiKeys, traceSupportedRPCs } = buildCustomRpcs(
-        chain.rpc,
-      ));
+      ({ rpc, rpcWithoutApiKeys, rpcWithApiKeyMasked, traceSupportedRPCs } =
+        buildCustomRpcs(chain.rpc));
     }
+
+    // Replace headerEnvName with headerValue in rpc
+    sourcifyExtension.rpc?.forEach((rpc) => {
+      if (typeof rpc === "object" && "headers" in rpc) {
+        rpc.headers?.forEach((header) => {
+          if (header.headerEnvName) {
+            header.headerValue = process.env[header.headerEnvName] || "";
+            delete header.headerEnvName;
+          }
+        });
+      }
+    });
 
     // sourcifyExtension is spread later to overwrite chains.json values, rpc specifically
     const sourcifyChain = new SourcifyChain({
       ...chain,
       ...sourcifyExtension,
-      rpc,
+      rpc: rpc as FetchRequestRPC[],
       rpcWithoutApiKeys,
+      rpcWithApiKeyMasked,
       traceSupportedRPCs,
     });
     sourcifyChainsMap[chainId] = sourcifyChain;
@@ -248,7 +287,8 @@ if (missingChains.length > 0) {
         name: chain.sourcifyName,
         chainId: parseInt(chainId),
         supported: chain.supported,
-        rpc,
+        rpc: rpc as FetchRequestRPC[],
+        fetchContractCreationTxUsing: chain.fetchContractCreationTxUsing,
         rpcWithoutApiKeys,
         traceSupportedRPCs,
       });

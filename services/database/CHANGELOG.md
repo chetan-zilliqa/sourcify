@@ -1,5 +1,61 @@
 # Changelog for `sourcify-database`
 
+## sourcify-database@2.7.2 - 2025-08-25
+
+- Add issue references in replace script configuration files (#2304)
+- Update dependencies
+
+## sourcify-database@2.7.1 - 2025-08-12
+
+- Track total replaced contracts in the massive replace script (#2293)
+- Fixes to massive replace for contracts from verifyDepracted (#2299)
+
+## sourcify-database@2.7.0 - 2025-08-11
+
+- Fix processing logic in massive-replace-script to handle errors and update contract counter correctly (#2280)
+- Replace script config for fixing missing constructor args transformations (#2282)
+- Replace script config for fixing mismatched metadata (#2285)
+- Add support for storing failed contracts in massive replace script
+- Add excludeContract option to ReplaceConfig and implement contract skipping logic
+
+## sourcify-database@2.6.0 - 2025-08-04
+
+- Implement new migration system based on dbmate, compatible with VerA
+- Implement new massive-replace script to easily execute fixes on misaligned data on Sourcify database
+
+## sourcify-database@2.5.4 - 2025-07-09
+
+- update dependencies
+
+## sourcify-database@2.5.3 - 2025-06-18
+
+- Update readme and .env.dev for documentation
+- Update packages
+
+## sourcify-database@2.5.2 - 2025-05-20
+
+- update dependencies
+
+## sourcify-database@2.5.1 - 2025-05-06
+
+- update dependencies
+
+## sourcify-database@2.5.0 - 2025-04-30
+
+- Add `error_data` column to `verification_jobs` table
+- Add local-docker migration configuration
+- Update dependencies
+
+## sourcify-database@2.4.0 - 2025-04-09
+
+- Add `updated_at` to `sourcify_matches`
+
+## sourcify-database@2.3.0 - 2025-03-19
+
+- Add verification_jobs tables
+- Update the VerA schema
+- Update dependencies
+
 ## sourcify-database@2.2.1 - 2025-02-18
 
 - Make Dune namespace configurable

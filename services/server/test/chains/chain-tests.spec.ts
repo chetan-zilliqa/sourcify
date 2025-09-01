@@ -6,7 +6,10 @@ import path from "path";
 import addContext from "mochawesome/addContext";
 import { assertVerification } from "../helpers/assertions";
 import testEtherscanContracts from "../helpers/etherscanInstanceContracts.json";
-import type { SourcifyChain } from "@ethereum-sourcify/lib-sourcify";
+import type {
+  SourcifyChain,
+  VerificationStatus,
+} from "@ethereum-sourcify/lib-sourcify";
 import config from "config";
 // @ts-ignore
 config["session"].storeType = "memory";
@@ -14,9 +17,9 @@ config["session"].storeType = "memory";
 type ChainApiResponse = Pick<
   SourcifyChain,
   "name" | "title" | "chainId" | "rpc" | "supported"
-> & { etherscanAPI: string };
+> & { etherscanAPI: boolean };
 
-const TEST_TIME = process.env.TEST_TIME || "60000"; // 30 seconds
+const TEST_TIME = process.env.TEST_TIME || "120000"; // 2 minutes
 const CUSTOM_PORT = 5556;
 
 // Extract the chainId from new chain support pull request, if exists
@@ -65,6 +68,21 @@ describe("Test Supported Chains", function () {
       );
     }
   });
+  // Privix Chain Mainnet
+  verifyContract(
+    "0x6696485Dc98Fadd6498414DD57dBaa3253FC31AD",
+    "16969696",
+    "Privix Chain Mainnet",
+    "shared/",
+  );
+
+  // Privix Chain Testnet
+  verifyContract(
+    "0x9A7ea4c9B7B0b628241F08ECC290b4C17F5f6955",
+    "96969696",
+    "Privix Chain Testnet",
+    "shared/",
+  );
   // exSat Mainnet
   verifyContract(
     "0xb0A32eBb9CD221d2FD91149195d87bE97552A90c",
@@ -124,13 +142,13 @@ describe("Test Supported Chains", function () {
   //   "shared/"
   // );
 
-  // Ethereum Mekong Testnet
-  verifyContract(
-    "0x247a8A599c99336dF37af1975661b32f7A26a88E",
-    "7078815900",
-    "Ethereum Mekong Testnet",
-    "shared/",
-  );
+  // // Ethereum Mekong Testnet
+  // verifyContract(
+  //   "0x247a8A599c99336dF37af1975661b32f7A26a88E",
+  //   "7078815900",
+  //   "Ethereum Mekong Testnet",
+  //   "shared/",
+  // );
 
   verifyContract(
     "0x7ecedB5ca848e695ee8aB33cce9Ad1E1fe7865F8",
@@ -143,6 +161,21 @@ describe("Test Supported Chains", function () {
     "0x8F78b9c92a68DdF719849a40702cFBfa4EB60dD0",
     "11155111",
     "Sepolia",
+    "shared/",
+  );
+
+  // Mezo Mainnet
+  verifyContract(
+    "0xc9Cbb09AA24abDb47574828D0Bb6bB218B550f39",
+    "31612",
+    "Mezo",
+    "shared/",
+  );
+
+  verifyContract(
+    "0x247a8A599c99336dF37af1975661b32f7A26a88E",
+    "560048",
+    "Ethereum Hoodi Testnet",
     "shared/",
   );
 
@@ -252,11 +285,10 @@ describe("Test Supported Chains", function () {
   );
 
   verifyContract(
-    "0x0912105a5383b63DF25BBe39Bedc3De407c6c64B",
+    "0x54Add02fC1664435c38BA49e5553F5952F777bD9",
     "216",
     "Happychain Testnet",
     "shared/",
-    "partial",
   );
 
   verifyContract(
@@ -357,20 +389,20 @@ describe("Test Supported Chains", function () {
   );
 
   // Rollux Mainnet
-  verifyContract(
-    "0x1187124eC74e2A2F420540C338186dD702cF6340",
-    "570",
-    "Rollux Mainnet",
-    "shared/",
-  );
+  // verifyContract(
+  //   "0x1187124eC74e2A2F420540C338186dD702cF6340",
+  //   "570",
+  //   "Rollux Mainnet",
+  //   "shared/",
+  // );
 
   // Rollux Tanenbaum (testnet)
-  verifyContract(
-    "0x736bfcA6a599bF0C3D499F8a0bC5ab2bA2030AC6",
-    "57000",
-    "Rollux Tanenbaum",
-    "shared/",
-  );
+  // verifyContract(
+  //   "0x736bfcA6a599bF0C3D499F8a0bC5ab2bA2030AC6",
+  //   "57000",
+  //   "Rollux Tanenbaum",
+  //   "shared/",
+  // );
 
   verifyContract(
     "0xE295aD71242373C37C5FdA7B57F26f9eA1088AFe",
@@ -553,12 +585,12 @@ describe("Test Supported Chains", function () {
   );
 
   // WAGMI Testnet
-  verifyContract(
-    "0x5974BF3196fc03A20cEB196270307707e0158BbD",
-    "11111",
-    "WAGMI",
-    "shared/",
-  );
+  // verifyContract(
+  //   "0x5974BF3196fc03A20cEB196270307707e0158BbD",
+  //   "11111",
+  //   "WAGMI",
+  //   "shared/",
+  // );
 
   // // Gather Mainnet
   // verifyContract(
@@ -843,7 +875,7 @@ describe("Test Supported Chains", function () {
 
   // Bear Network Chain Mainnet
   verifyContract(
-    "0x0f103813fa15CA19b6C4B46a0Afe99440b81d7C3",
+    "0x115B83FE885D2Acf6099B6f3aAa75502CEBBA154",
     "641230",
     "Bear Network Chain Mainnet",
     "shared/",
@@ -938,13 +970,13 @@ describe("Test Supported Chains", function () {
     "shared/",
   );
 
-  // Telcoin Network
-  verifyContract(
-    "0x25E8aB38013CB30D74992Aa5d1a74B65409Dc6b1",
-    "2017",
-    "Telcoin Network",
-    "shared/",
-  );
+  // // Telcoin Network
+  // verifyContract(
+  //   "0x25E8aB38013CB30D74992Aa5d1a74B65409Dc6b1",
+  //   "2017",
+  //   "Telcoin Network",
+  //   "shared/",
+  // );
 
   // Bitkub Chain Testnet
   verifyContract(
@@ -1029,20 +1061,20 @@ describe("Test Supported Chains", function () {
   );
 
   // Kanazawa Chain Testnet
-  verifyContract(
-    "0x24c456Fb4c450208366B1f8322c3241aA013758e",
-    "222000222",
-    "Kanazawa Chain",
-    "multicall-literal-contents/",
-  );
+  // verifyContract(
+  //   "0x24c456Fb4c450208366B1f8322c3241aA013758e",
+  //   "222000222",
+  //   "Kanazawa Chain",
+  //   "multicall-literal-contents/",
+  // );
 
-  // MELD Chain Testnet
-  verifyContract(
-    "0x769eE5A8e82C15C1b6E358f62aC8eb6E3AbE8dC5",
-    "333000333",
-    "MELD Chain",
-    "multicall-literal-contents/",
-  );
+  // // MELD Chain Testnet
+  // verifyContract(
+  //   "0x769eE5A8e82C15C1b6E358f62aC8eb6E3AbE8dC5",
+  //   "333000333",
+  //   "MELD Chain",
+  //   "multicall-literal-contents/",
+  // );
 
   // Kiwi Subnet
   verifyContract(
@@ -1225,12 +1257,12 @@ describe("Test Supported Chains", function () {
     "shared/",
   );
 
-  verifyContract(
-    "0xE115Ef16e46bbF46591170D712140eC553C43553",
-    "10243",
-    "Arthera Testnet",
-    "shared/",
-  );
+  // verifyContract(
+  //   "0xE115Ef16e46bbF46591170D712140eC553C43553",
+  //   "10243",
+  //   "Arthera Testnet",
+  //   "shared/",
+  // );
 
   // Q Mainnet
   verifyContract(
@@ -1336,13 +1368,13 @@ describe("Test Supported Chains", function () {
     "shared/",
   );
 
-  // Tiltyard Subnet
-  verifyContract(
-    "0xfd52e1A54442aC8d6a7C54713f99D0dc113df220",
-    "1127469",
-    "Tiltyard Subnet",
-    "multicall-src/",
-  );
+  // // Tiltyard Subnet
+  // verifyContract(
+  //   "0xfd52e1A54442aC8d6a7C54713f99D0dc113df220",
+  //   "1127469",
+  //   "Tiltyard Subnet",
+  //   "multicall-src/",
+  // );
 
   // Polygon zkEVM Mainnet
   verifyContract(
@@ -1434,7 +1466,7 @@ describe("Test Supported Chains", function () {
 
   // Ozone Chain Mainnet
   verifyContract(
-    "0x50A9B085260F80CFEb1Af8c7131980fC11238ccB",
+    "0xf776d21c74BEde463E0Ac7aD7cF12a9b2c904D03",
     "4000",
     "Ozone Chain Mainnet",
     "shared/",
@@ -1472,13 +1504,13 @@ describe("Test Supported Chains", function () {
     "shared/",
   );
 
-  // YMTECH-BESU Testnet
-  verifyContract(
-    "0x37A01685de21e2d459fE3c6AEDe86A94B4bb8d9C",
-    "202401",
-    "YMTECH-BESU Testnet",
-    "shared/",
-  );
+  // // YMTECH-BESU Testnet
+  // verifyContract(
+  //   "0x37A01685de21e2d459fE3c6AEDe86A94B4bb8d9C",
+  //   "202401",
+  //   "YMTECH-BESU Testnet",
+  //   "shared/",
+  // );
 
   // Swisstronik Testnet
   verifyContract(
@@ -1514,7 +1546,7 @@ describe("Test Supported Chains", function () {
 
   // Auroria Testnet
   verifyContract(
-    "0x317306CE2b9CE1C8f419bfB2E480b4f000FB6B09",
+    "0xe446f231A55e8a376ec7cF5Ae7345f91BBAb5D8E",
     "205205",
     "Auroria Testnet",
     "shared/",
@@ -1568,21 +1600,21 @@ describe("Test Supported Chains", function () {
     "shared/",
   );
 
-  // Garnet Holesky
-  verifyContract(
-    "0x81EbbEDEd806Dbaa6ccD5a9D6D88D0d90B70dfc9",
-    "17069",
-    "Garnet Holesky",
-    "shared/",
-  );
+  // // Garnet Holesky
+  // verifyContract(
+  //   "0x81EbbEDEd806Dbaa6ccD5a9D6D88D0d90B70dfc9",
+  //   "17069",
+  //   "Garnet Holesky",
+  //   "shared/",
+  // );
 
-  // PlayFair Testnet Subnet
-  verifyContract(
-    "0x9be71dB4693657625F92359d046c513Bb35F96db",
-    "12898",
-    "PlayFair Testnet Subnet",
-    "shared/",
-  );
+  // // PlayFair Testnet Subnet
+  // verifyContract(
+  //   "0x9be71dB4693657625F92359d046c513Bb35F96db",
+  //   "12898",
+  //   "PlayFair Testnet Subnet",
+  //   "shared/",
+  // );
 
   // HOME Verse Mainnet
   verifyContract(
@@ -1680,13 +1712,13 @@ describe("Test Supported Chains", function () {
     "shared/",
   );
 
-  // Vechain Testnet
-  verifyContract(
-    "0x393207E1019e4114EE4E9c633D09418252217e22",
-    "16350",
-    "Incentiv Devnet",
-    "shared/",
-  );
+  // // Vechain Testnet
+  // verifyContract(
+  //   "0x393207E1019e4114EE4E9c633D09418252217e22",
+  //   "16350",
+  //   "Incentiv Devnet",
+  //   "shared/",
+  // );
 
   // Curtis Testnet
   verifyContract(
@@ -1751,6 +1783,14 @@ describe("Test Supported Chains", function () {
     "shared/",
   );
 
+  // Zircuit Garfield Testnet
+  verifyContract(
+    "0x0cfE351147DEb353a57623859F7b2A4984645433",
+    "48898",
+    "Zircuit Garfield Testnet",
+    "shared/",
+  );
+
   // Zircuit Mainnet
   verifyContract(
     "0x0cfE351147DEb353a57623859F7b2A4984645433",
@@ -1775,27 +1815,89 @@ describe("Test Supported Chains", function () {
     "shared/",
   );
 
-  // Story Odyssey
-  verifyContract(
-    "0x78418e6efE946a65900E354e949C5dF0317dd411",
-    "1516",
-    "Story Odyssey",
-    "shared/",
-  );
+  // // Story Odyssey
+  // verifyContract(
+  //   "0x78418e6efE946a65900E354e949C5dF0317dd411",
+  //   "1516",
+  //   "Story Odyssey",
+  //   "shared/",
+  // );
 
-  // Quantum Portal Network
-  verifyContract(
-    "0x511f9B726559384f10371Bc7f19A925F864a9997",
-    "26100",
-    "Quantum Portal Network",
-    "shared/",
-  );
+  // // Quantum Portal Network
+  // verifyContract(
+  //   "0x511f9B726559384f10371Bc7f19A925F864a9997",
+  //   "26100",
+  //   "Quantum Portal Network",
+  //   "shared/",
+  // );
 
   // Citrea Testnet
   verifyContract(
     "0xad90c25cA57A3871241D88c42dca829ae59EC144",
     "5115",
     "Citrea Testnet",
+    "shared/",
+  );
+
+  // Citrea Testnet
+  verifyContract(
+    "0xF32a986F3741cC19Cfe05B806b3ECBAe7eB5F4eA",
+    "180",
+    "AME Chain Mainnet",
+    "shared/",
+  );
+
+  // Superseed Mainnet
+  verifyContract(
+    "0xaa0b508D986702650e4D3AaB253f5E97e2cF86A8",
+    "5330",
+    "Superseed Mainnet",
+    "shared/",
+  );
+
+  // Corn Mainnet
+  verifyContract(
+    "0xCFeE055Bf4deC42563F023cA097edf0C48Cc357F",
+    "21000000",
+    "Corn Mainnet",
+    "shared/",
+  );
+
+  // Etherlink
+  verifyContract(
+    "0xec5504BcE3BCE4F1c4088a6A150A4A8C840945a7",
+    "42793",
+    "Etherlink",
+    "shared/",
+  );
+
+  // Etherlink Testnet
+  verifyContract(
+    "0x5827317D75D53E7a7901657307209bC684B8EcDc",
+    "128123",
+    "Etherlink Testnet",
+    "shared/",
+  );
+  // peaq
+  verifyContract(
+    "0x3ef7f3E38704eD3702D105094Bbb8562BE51b569",
+    "3338",
+    "peaq Mainnet",
+    "shared/",
+  );
+
+  // PlatON Testnet
+  verifyContract(
+    "0x1c850623b1581A8aA01d6B9AfC14D90990F2a54f",
+    "2206132",
+    "PlatON Testnet",
+    "shared/",
+  );
+  // PlatON Mainnet
+  verifyContract(
+    "0x9288D792A4b08E1f5c74725197298294dd3Fc8b3",
+    "210425",
+    "PlatON Mainnet",
     "shared/",
   );
 
@@ -1859,7 +1961,7 @@ describe("Test Supported Chains", function () {
     chainId: string,
     chainName: string,
     sourceAndMetadataDir: string, // folder
-    expectedStatus = "perfect",
+    expectedStatus: VerificationStatus = "perfect",
   ) {
     // If it is a pull request for adding new chain support, only test the new chain
     if (newAddedChainIds.length && !newAddedChainIds.includes(chainId)) return;
@@ -1876,6 +1978,19 @@ describe("Test Supported Chains", function () {
       const fullDir = path.join(__dirname, "sources", sourceAndMetadataDir);
       const files = {};
       readFilesRecursively(fullDir, files);
+
+      // Check if the chain is supported using the /chains endpoint data
+      const isChainSupported = supportedChains.some(
+        (chain) => chain.chainId.toString() === chainId,
+      );
+
+      if (!isChainSupported) {
+        console.log(
+          `Skipping test for unsupported chain: ${chainName} (${chainId})`,
+        );
+        this.skip();
+        return;
+      }
 
       chai
         .request(serverFixture.server.app)

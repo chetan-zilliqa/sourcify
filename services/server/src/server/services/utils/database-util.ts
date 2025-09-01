@@ -1,21 +1,26 @@
 import {
   ImmutableReferences,
-  Libraries,
-  Match,
   Metadata,
-  Status,
+  VerificationStatus,
   StorageLayout,
   Transformation,
   TransformationValues,
   CompiledContractCborAuxdata,
-  AbstractCheckedContract,
   LinkReferences,
   VyperJsonInput,
-  JsonInput,
+  SolidityJsonInput,
   SolidityOutput,
   VyperOutput,
+  VerificationExport,
+  SolidityOutputContract,
+  SoliditySettings,
+  VyperSettings,
+  SourcifyLibErrorData,
+  ISolidityCompiler,
+  IVyperCompiler,
+  PreRunCompilation,
+  splitFullyQualifiedName,
 } from "@ethereum-sourcify/lib-sourcify";
-import { Abi } from "abitype";
 import {
   VerifiedContract as VerifiedContractApiObject,
   Bytes,
@@ -24,6 +29,11 @@ import {
   BytesTypes,
   Nullable,
 } from "../../types";
+import { keccak256, JsonFragment } from "ethers";
+import { Database } from "./Database";
+import logger from "../../../common/logger";
+
+export type JobErrorData = Omit<SourcifyLibErrorData, "chainId" | "address">;
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace Tables {
@@ -56,13 +66,18 @@ export namespace Tables {
     name: string;
     fully_qualified_name: string;
     compilation_artifacts: {
-      abi: Nullable<Abi>;
+      abi: Nullable<JsonFragment[]>;
       userdoc: Nullable<any>;
       devdoc: Nullable<any>;
       storageLayout: Nullable<StorageLayout>;
       sources: Nullable<CompilationArtifactsSources>;
+      methodIdentifiers?: Nullable<any>;
+      ir?: any;
     };
-    compiler_settings: Object;
+    compiler_settings: Omit<
+      SoliditySettings | VyperSettings,
+      "outputSelection"
+    >;
     creation_code_hash?: BytesSha;
     runtime_code_hash: BytesSha;
     creation_code_artifacts: {
@@ -108,8 +123,8 @@ export namespace Tables {
   export interface SourcifyMatch {
     id: string;
     verified_contract_id: string;
-    runtime_match: Status | null;
-    creation_match: Status | null;
+    runtime_match: VerificationStatus | null;
+    creation_match: VerificationStatus | null;
     metadata: Metadata;
     created_at: Date;
   }
@@ -119,12 +134,36 @@ export namespace Tables {
     address: string;
     match_type: string;
   }
-}
 
-export interface CompilationArtifactsSources {
-  [globalName: string]: {
-    id: number;
-  };
+  export interface CompilationArtifactsSources {
+    [globalName: string]: {
+      id: number;
+    };
+  }
+
+  export interface VerificationJob {
+    id: string;
+    started_at: Date;
+    completed_at: Nullable<Date>;
+    chain_id: string;
+    contract_address: Bytes;
+    verified_contract_id: Nullable<string>;
+    error_code: Nullable<string>;
+    error_id: Nullable<string>;
+    error_data: Nullable<JobErrorData>;
+    verification_endpoint: string;
+    hardware: Nullable<string>;
+    compilation_time: Nullable<string>;
+  }
+
+  export interface VerificationJobEphemeral {
+    id: string;
+    recompiled_creation_code: Nullable<Bytes>;
+    recompiled_runtime_code: Nullable<Bytes>;
+    onchain_creation_code: Nullable<Bytes>;
+    onchain_runtime_code: Nullable<Bytes>;
+    creation_transaction_hash: Nullable<Bytes>;
+  }
 }
 
 export interface SourceInformation {
@@ -167,6 +206,15 @@ export type GetSourcifyMatchByChainAddressResult = Tables.SourcifyMatch &
     onchain_runtime_code: string;
   };
 
+export type GetSourcifyMatchesAllChainsResult = Pick<
+  Tables.SourcifyMatch,
+  "id" | "creation_match" | "runtime_match"
+> &
+  Pick<Tables.ContractDeployment, "chain_id"> & {
+    address: string;
+    verified_at: string;
+  };
+
 export type GetSourcifyMatchesByChainResult = Pick<
   Tables.SourcifyMatch,
   "id" | "creation_match" | "runtime_match"
@@ -197,7 +245,10 @@ export type GetSourcifyMatchByChainAddressWithPropertiesResult = Partial<
       | "runtime_transformations"
       | "runtime_values"
     > &
-    Pick<Tables.ContractDeployment, "block_number" | "transaction_index"> & {
+    Pick<
+      Tables.ContractDeployment,
+      "block_number" | "transaction_index" | "chain_id"
+    > & {
       verified_at: string;
       address: string;
       onchain_creation_code: string;
@@ -215,31 +266,43 @@ export type GetSourcifyMatchByChainAddressWithPropertiesResult = Partial<
       deployer: string;
       sources: { [path: string]: { content: string } };
       storage_layout: Tables.CompiledContract["compilation_artifacts"]["storageLayout"];
-      std_json_input: JsonInput | VyperJsonInput;
+      source_ids: Tables.CompiledContract["compilation_artifacts"]["sources"];
+      std_json_input: SolidityJsonInput | VyperJsonInput;
       std_json_output: SolidityOutput | VyperOutput;
     }
 >;
 
-export type GetVerificationJobByIdResult = {
+export type GetVerificationJobByIdResult = Pick<
+  Tables.VerificationJob,
+  | "chain_id"
+  | "verified_contract_id"
+  | "error_code"
+  | "error_id"
+  | "error_data"
+  | "compilation_time"
+> & {
   started_at: string;
-  completed_at: string | null;
-  chain_id: string;
+  completed_at: Nullable<string>;
   contract_address: string;
-  verified_contract_id: string | null;
-  error_code: string | null;
-  error_id: string | null;
-  compilation_time: string | null;
-  recompiled_creation_code: string | null;
-  recompiled_runtime_code: string | null;
-  onchain_creation_code: string | null;
-  onchain_runtime_code: string | null;
-  creator_transaction_hash: string | null;
-  runtime_match: boolean | null;
-  creation_match: boolean | null;
-  runtime_metadata_match: boolean | null;
-  creation_metadata_match: boolean | null;
-  match_id: string | null;
-  verified_at: string | null;
+  recompiled_creation_code: Nullable<string>;
+  recompiled_runtime_code: Nullable<string>;
+  onchain_creation_code: Nullable<string>;
+  onchain_runtime_code: Nullable<string>;
+  creation_transaction_hash: Nullable<string>;
+  runtime_match: Nullable<Tables.VerifiedContract["runtime_match"]>;
+  creation_match: Nullable<Tables.VerifiedContract["creation_match"]>;
+  runtime_metadata_match: Nullable<
+    Tables.VerifiedContract["runtime_metadata_match"]
+  >;
+  creation_metadata_match: Nullable<
+    Tables.VerifiedContract["creation_metadata_match"]
+  >;
+  match_id: Nullable<Tables.SourcifyMatch["id"]>;
+  verified_at: Nullable<string>;
+};
+
+export type GetVerificationJobsByChainAndAddressResult = {
+  completed_at: Nullable<string>;
 };
 
 const sourcesAggregation =
@@ -249,6 +312,7 @@ export const STORED_PROPERTIES_TO_SELECTORS = {
   id: "sourcify_matches.id",
   creation_match: "sourcify_matches.creation_match",
   runtime_match: "sourcify_matches.runtime_match",
+  chain_id: "contract_deployments.chain_id",
   verified_at:
     'to_char(sourcify_matches.created_at, \'YYYY-MM-DD"T"HH24:MI:SS"Z"\') as verified_at',
   address:
@@ -298,6 +362,8 @@ export const STORED_PROPERTIES_TO_SELECTORS = {
     "compiled_contracts.compilation_artifacts->'storageLayout' as storage_layout",
   userdoc: "compiled_contracts.compilation_artifacts->'userdoc' as userdoc",
   devdoc: "compiled_contracts.compilation_artifacts->'devdoc' as devdoc",
+  source_ids:
+    "compiled_contracts.compilation_artifacts->'sources' as source_ids",
   std_json_input: `json_build_object(
     'language', INITCAP(compiled_contracts.language), 
     'sources', ${sourcesAggregation},
@@ -320,12 +386,12 @@ export const STORED_PROPERTIES_TO_SELECTORS = {
           'storageLayout', compiled_contracts.compilation_artifacts->'storageLayout',
           'evm', json_build_object(
             'bytecode', json_build_object(
-              'object', nullif(concat('0x', encode(recompiled_creation_code.code, 'hex')), '0x'),
+              'object', nullif(encode(recompiled_creation_code.code, 'hex'), ''),
               'sourceMap', compiled_contracts.creation_code_artifacts->'sourceMap',
               'linkReferences', compiled_contracts.creation_code_artifacts->'linkReferences'
             ),
             'deployedBytecode', json_build_object(
-              'object', nullif(concat('0x', encode(recompiled_runtime_code.code, 'hex')), '0x'),
+              'object', nullif(encode(recompiled_runtime_code.code, 'hex'), ''),
               'sourceMap', compiled_contracts.runtime_code_artifacts->'sourceMap',
               'linkReferences', compiled_contracts.runtime_code_artifacts->'linkReferences',
               'immutableReferences', compiled_contracts.runtime_code_artifacts->'immutableReferences'
@@ -419,6 +485,7 @@ export const FIELDS_TO_STORED_PROPERTIES: Record<
   storageLayout: "storage_layout",
   userdoc: "userdoc",
   devdoc: "devdoc",
+  sourceIds: "source_ids",
   stdJsonInput: "std_json_input",
   stdJsonOutput: "std_json_output",
   proxyResolution: {
@@ -464,24 +531,17 @@ export function bytesFromString<T extends BytesTypes>(
 //   Creation bytecode:
 //     1. Replace library address placeholders ("__$53aea86b7d70b31448b230b20ae141a537$__") with zeros
 //     2. Immutables are already set to zeros
-export function normalizeRecompiledBytecodes(
-  recompiledContract: AbstractCheckedContract,
-  match: Match,
-) {
-  recompiledContract.normalizedRuntimeBytecode =
-    recompiledContract.runtimeBytecode;
+export function normalizeRecompiledBytecodes(verification: VerificationExport) {
+  let normalizedRuntimeBytecode = verification.compilation.runtimeBytecode;
+  let normalizedCreationBytecode = verification.compilation.creationBytecode;
 
   const PLACEHOLDER_LENGTH = 40;
 
   // Runtime bytecode normalzations
-  match.runtimeTransformations?.forEach((transformation) => {
-    if (
-      transformation.reason === "library" &&
-      recompiledContract.normalizedRuntimeBytecode
-    ) {
+  verification.transformations.runtime.list.forEach((transformation) => {
+    if (transformation.reason === "library" && normalizedRuntimeBytecode) {
       const placeholder = "0".repeat(PLACEHOLDER_LENGTH);
-      const normalizedRuntimeBytecode =
-        recompiledContract.normalizedRuntimeBytecode.substring(2);
+      normalizedRuntimeBytecode = normalizedRuntimeBytecode.substring(2);
       // we multiply by 2 because transformation.offset is stored as the length in bytes
       const before = normalizedRuntimeBytecode.substring(
         0,
@@ -490,72 +550,375 @@ export function normalizeRecompiledBytecodes(
       const after = normalizedRuntimeBytecode.substring(
         transformation.offset * 2 + PLACEHOLDER_LENGTH,
       );
-      recompiledContract.normalizedRuntimeBytecode = `0x${
-        before + placeholder + after
-      }`;
+      normalizedRuntimeBytecode = `0x${before + placeholder + after}`;
     }
   });
 
   // Creation bytecode normalizations
-  if (recompiledContract.creationBytecode) {
-    recompiledContract.normalizedCreationBytecode =
-      recompiledContract.creationBytecode;
-    match.creationTransformations?.forEach((transformation) => {
-      if (
-        transformation.reason === "library" &&
-        recompiledContract.normalizedCreationBytecode
-      ) {
-        const placeholder = "0".repeat(PLACEHOLDER_LENGTH);
-        const normalizedCreationBytecode =
-          recompiledContract.normalizedCreationBytecode.substring(2);
-        // we multiply by 2 because transformation.offset is stored as the length in bytes
-        const before = normalizedCreationBytecode.substring(
-          0,
-          transformation.offset * 2,
-        );
-        const after = normalizedCreationBytecode.substring(
-          transformation.offset * 2 + PLACEHOLDER_LENGTH,
-        );
-        recompiledContract.normalizedCreationBytecode = `0x${
-          before + placeholder + after
-        }`;
-      }
-    });
-  }
+  verification.transformations.creation.list.forEach((transformation) => {
+    if (transformation.reason === "library" && normalizedCreationBytecode) {
+      const placeholder = "0".repeat(PLACEHOLDER_LENGTH);
+      normalizedCreationBytecode = normalizedCreationBytecode.substring(2);
+      // we multiply by 2 because transformation.offset is stored as the length in bytes
+      const before = normalizedCreationBytecode.substring(
+        0,
+        transformation.offset * 2,
+      );
+      const after = normalizedCreationBytecode.substring(
+        transformation.offset * 2 + PLACEHOLDER_LENGTH,
+      );
+      normalizedCreationBytecode = `0x${before + placeholder + after}`;
+    }
+  });
+
+  return {
+    normalizedRuntimeBytecode,
+    normalizedCreationBytecode,
+  };
 }
 
-export function prepareCompilerSettings(
-  recompiledContract: AbstractCheckedContract,
+function getKeccak256Bytecodes(
+  verification: VerificationExport,
+  normalizedCreationBytecode: string | undefined,
+  normalizedRuntimeBytecode: string | undefined,
 ) {
-  // The metadata.settings contains recompiledContract that is not a field of compiler input
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { compilationTarget, ...restSettings } =
-    recompiledContract.metadata.settings;
+  if (normalizedRuntimeBytecode === undefined) {
+    throw new Error("normalizedRuntimeBytecode cannot be undefined");
+  }
+  if (verification.onchainRuntimeBytecode === undefined) {
+    throw new Error("onchainRuntimeBytecode cannot be undefined");
+  }
 
-  const metadataLibraries =
-    recompiledContract.metadata.settings?.libraries || {};
-  restSettings.libraries = Object.keys(metadataLibraries || {}).reduce(
-    (libraries, libraryKey) => {
-      // Before Solidity v0.7.5: { "ERC20": "0x..."}
-      if (!libraryKey.includes(":")) {
-        if (!libraries[""]) {
-          libraries[""] = {};
-        }
-        // try using the global method, available for pre 0.7.5 versions
-        libraries[""][libraryKey] = metadataLibraries[libraryKey];
-        return libraries;
-      }
+  return {
+    keccak256OnchainCreationBytecode: verification.onchainCreationBytecode
+      ? keccak256(bytesFromString(verification.onchainCreationBytecode))
+      : undefined,
+    keccak256OnchainRuntimeBytecode: keccak256(
+      bytesFromString(verification.onchainRuntimeBytecode),
+    ),
+    keccak256RecompiledCreationBytecode: normalizedCreationBytecode
+      ? keccak256(bytesFromString(normalizedCreationBytecode))
+      : undefined,
+    keccak256RecompiledRuntimeBytecode: keccak256(
+      bytesFromString(normalizedRuntimeBytecode),
+    ),
+  };
+}
+export async function getDatabaseColumnsFromVerification(
+  verification: VerificationExport,
+): Promise<DatabaseColumns> {
+  // Normalize both creation and runtime recompiled bytecodes before storing them to the database
+  const { normalizedRuntimeBytecode, normalizedCreationBytecode } =
+    normalizeRecompiledBytecodes(verification);
 
-      // After Solidity v0.7.5: { "ERC20.sol:ERC20": "0x..."}
-      const [contractPath, contractName] = libraryKey.split(":");
-      if (!libraries[contractPath]) {
-        libraries[contractPath] = {};
-      }
-      libraries[contractPath][contractName] = metadataLibraries[libraryKey];
-      return libraries;
+  const {
+    keccak256OnchainCreationBytecode,
+    keccak256OnchainRuntimeBytecode,
+    keccak256RecompiledCreationBytecode,
+    keccak256RecompiledRuntimeBytecode,
+  } = getKeccak256Bytecodes(
+    verification,
+    normalizedCreationBytecode,
+    normalizedRuntimeBytecode,
+  );
+
+  const runtimeMatch =
+    verification.status.runtimeMatch === "perfect" ||
+    verification.status.runtimeMatch === "partial";
+  const creationMatch =
+    verification.status.creationMatch === "perfect" ||
+    verification.status.creationMatch === "partial";
+
+  const {
+    runtime: {
+      list: runtimeTransformations,
+      values: runtimeTransformationValues,
     },
-    {} as Libraries,
-  ) as any;
+    creation: {
+      list: creationTransformations,
+      values: creationTransformationValues,
+    },
+  } = verification.transformations;
 
+  // Force _transformations and _values to be null if not match
+  // Force _transformations and _values to be not null if match
+  let runtime_transformations = null;
+  let runtime_values = null;
+  let runtime_metadata_match = null;
+  if (runtimeMatch) {
+    runtime_transformations = runtimeTransformations
+      ? runtimeTransformations
+      : [];
+    runtime_values = runtimeTransformationValues
+      ? runtimeTransformationValues
+      : {};
+    runtime_metadata_match = verification.status.runtimeMatch === "perfect";
+  }
+  let creation_transformations = null;
+  let creation_values = null;
+  let creation_metadata_match = null;
+  if (creationMatch) {
+    creation_transformations = creationTransformations
+      ? creationTransformations
+      : [];
+    creation_values = creationTransformationValues
+      ? creationTransformationValues
+      : {};
+    creation_metadata_match = verification.status.creationMatch === "perfect";
+  }
+
+  const compilationTargetPath = verification.compilation.compilationTarget.path;
+  const compilationTargetName = verification.compilation.compilationTarget.name;
+  const compilerOutput = verification.compilation.contractCompilerOutput;
+
+  // For some property we cast compilerOutput as SolidityOutputContract because VyperOutput does not have them
+  const compilationArtifacts = {
+    abi: compilerOutput?.abi || null,
+    userdoc: compilerOutput?.userdoc || null,
+    devdoc: compilerOutput?.devdoc || null,
+    storageLayout:
+      (compilerOutput as SolidityOutputContract)?.storageLayout || null,
+    sources: verification.compilation.compilerOutput?.sources || null,
+  };
+  const creationCodeArtifacts = {
+    sourceMap:
+      (compilerOutput as SolidityOutputContract)?.evm?.bytecode?.sourceMap ||
+      null,
+    linkReferences:
+      (compilerOutput as SolidityOutputContract)?.evm?.bytecode
+        ?.linkReferences || null,
+    cborAuxdata: verification.compilation.creationBytecodeCborAuxdata || null,
+  };
+
+  let immutableReferences = null;
+  // immutableReferences for Vyper are not a compiler output and should not be stored
+  if (verification.compilation.language === "Solidity") {
+    immutableReferences = verification.compilation.immutableReferences || null;
+  }
+  const runtimeCodeArtifacts = {
+    sourceMap: compilerOutput?.evm.deployedBytecode?.sourceMap || null,
+    linkReferences:
+      (compilerOutput as SolidityOutputContract)?.evm?.deployedBytecode
+        ?.linkReferences || null,
+    immutableReferences: immutableReferences,
+    cborAuxdata: verification.compilation.runtimeBytecodeCborAuxdata || null,
+  };
+
+  // runtime bytecodes must exist
+  if (normalizedRuntimeBytecode === undefined) {
+    throw new Error("Missing normalized runtime bytecode");
+  }
+  if (verification.onchainRuntimeBytecode === undefined) {
+    throw new Error("Missing onchain runtime bytecode");
+  }
+
+  let recompiledCreationCode: Omit<Tables.Code, "bytecode_hash"> | undefined;
+  if (normalizedCreationBytecode && keccak256RecompiledCreationBytecode) {
+    recompiledCreationCode = {
+      bytecode_hash_keccak: bytesFromString<BytesKeccak>(
+        keccak256RecompiledCreationBytecode,
+      ),
+      bytecode: bytesFromString<Bytes>(normalizedCreationBytecode),
+    };
+  }
+
+  let onchainCreationCode: Omit<Tables.Code, "bytecode_hash"> | undefined;
+
+  try {
+    if (
+      verification.onchainCreationBytecode &&
+      keccak256OnchainCreationBytecode
+    ) {
+      onchainCreationCode = {
+        bytecode_hash_keccak: bytesFromString<BytesKeccak>(
+          keccak256OnchainCreationBytecode,
+        ),
+        bytecode: bytesFromString<Bytes>(verification.onchainCreationBytecode),
+      };
+    }
+  } catch (e) {
+    // If the onchain creation bytecode is undefined, we don't store it
+  }
+
+  const sourcesInformation = Object.keys(verification.compilation.sources).map(
+    (path) => {
+      return {
+        path,
+        source_hash_keccak: bytesFromString<BytesKeccak>(
+          keccak256(Buffer.from(verification.compilation.sources[path])),
+        ),
+        content: verification.compilation.sources[path],
+      };
+    },
+  );
+
+  return {
+    recompiledCreationCode,
+    recompiledRuntimeCode: {
+      bytecode_hash_keccak: bytesFromString<BytesKeccak>(
+        keccak256RecompiledRuntimeBytecode,
+      ),
+      bytecode: bytesFromString<Bytes>(normalizedRuntimeBytecode),
+    },
+    onchainCreationCode,
+    onchainRuntimeCode: {
+      bytecode_hash_keccak: bytesFromString<BytesKeccak>(
+        keccak256OnchainRuntimeBytecode,
+      ),
+      bytecode: bytesFromString<Bytes>(verification.onchainRuntimeBytecode),
+    },
+    contractDeployment: {
+      chain_id: verification.chainId.toString(),
+      address: bytesFromString(verification.address),
+      transaction_hash: bytesFromString(verification.deploymentInfo.txHash),
+      block_number: verification.deploymentInfo.blockNumber,
+      transaction_index: verification.deploymentInfo.txIndex,
+      deployer: bytesFromString(verification.deploymentInfo.deployer),
+    },
+    compiledContract: {
+      language: verification.compilation.language.toLocaleLowerCase(),
+      compiler:
+        verification.compilation.language.toLocaleLowerCase() === "solidity"
+          ? "solc"
+          : "vyper",
+      compiler_settings: prepareCompilerSettingsFromVerification(verification),
+      name: verification.compilation.compilationTarget.name,
+      version: verification.compilation.compilerVersion,
+      fully_qualified_name: `${compilationTargetPath}:${compilationTargetName}`,
+      compilation_artifacts: compilationArtifacts,
+      creation_code_artifacts: creationCodeArtifacts,
+      runtime_code_artifacts: runtimeCodeArtifacts,
+    },
+    sourcesInformation,
+    verifiedContract: {
+      runtime_transformations,
+      creation_transformations,
+      runtime_values,
+      creation_values,
+      runtime_match: runtimeMatch,
+      creation_match: creationMatch,
+      // We cover also no-metadata case by using match === "perfect"
+      runtime_metadata_match,
+      creation_metadata_match,
+    },
+  };
+}
+
+export function prepareCompilerSettingsFromVerification(
+  verification: VerificationExport,
+): Omit<SoliditySettings | VyperSettings, "outputSelection"> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { outputSelection, ...restSettings } =
+    verification.compilation.jsonInput.settings;
   return restSettings;
+}
+
+export async function extractCompilationFromDatabase(
+  database: Database,
+  { solc, vyper }: { solc: ISolidityCompiler; vyper: IVyperCompiler },
+  address: string,
+  chainId: number,
+): Promise<PreRunCompilation> {
+  if (!database.isPoolInitialized()) {
+    logger.error(
+      "extractCompilationFromDatabase: database pool not initialized",
+    );
+    throw new Error(
+      "extractCompilationFromDatabase: database pool not initialized",
+    );
+  }
+
+  try {
+    // Fetch compilation data from the database
+    const verifiedContractResult =
+      await database.getSourcifyMatchByChainAddressWithProperties(
+        chainId,
+        bytesFromString(address),
+        [
+          "std_json_input",
+          "std_json_output",
+          "runtime_cbor_auxdata",
+          "creation_cbor_auxdata",
+          "fully_qualified_name",
+          "version",
+          "metadata",
+        ],
+      );
+
+    if (verifiedContractResult.rows.length === 0) {
+      logger.error(
+        "extractCompilationFromDatabase: verified contract not found",
+        {
+          chainId,
+          address,
+        },
+      );
+      throw new Error("Verified contract not found");
+    }
+
+    const verifiedContract = verifiedContractResult.rows[0];
+
+    // Extract properties from the verified contract
+    const compilerVersion = verifiedContract.version;
+    const creationCodeCborAuxdata: CompiledContractCborAuxdata | undefined =
+      verifiedContract.creation_cbor_auxdata || undefined;
+    const runtimeCodeCborAuxdata: CompiledContractCborAuxdata | undefined =
+      verifiedContract.runtime_cbor_auxdata || undefined;
+
+    // Get the file path and contract name from fully_qualified_name
+    const { contractPath, contractName } = splitFullyQualifiedName(
+      verifiedContract.fully_qualified_name!,
+    );
+    const compilationTarget = {
+      name: contractName,
+      path: contractPath,
+    };
+
+    // Set the JSON input and output
+    const jsonInput = verifiedContract.std_json_input;
+    const jsonOutput = verifiedContract.std_json_output;
+
+    if (
+      !compilerVersion ||
+      !jsonInput ||
+      !jsonOutput ||
+      !compilationTarget ||
+      !creationCodeCborAuxdata ||
+      !runtimeCodeCborAuxdata
+    ) {
+      logger.error(
+        "extractCompilationFromDatabase: compilation properties not found",
+        {
+          chainId,
+          address,
+        },
+      );
+      throw new Error("Compilation properties not found");
+    }
+
+    const compilation = new PreRunCompilation(
+      jsonInput?.language === "Solidity" ? solc : vyper,
+      compilerVersion,
+      jsonInput,
+      jsonOutput,
+      compilationTarget,
+      creationCodeCborAuxdata,
+      runtimeCodeCborAuxdata,
+    );
+    // Vyper compiler output doesn't contain the metadata field, so we override it with the metadata from sourcify_matches
+    if (jsonInput.language === "Vyper" && verifiedContract.metadata) {
+      compilation.setMetadata(verifiedContract.metadata);
+    }
+    return compilation;
+  } catch (error) {
+    logger.error(
+      "extractCompilationFromDatabase: error extracting compilation properties",
+      {
+        error: error,
+        chainId,
+        address,
+      },
+    );
+    throw error;
+  }
 }

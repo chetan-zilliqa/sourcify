@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## @ethereum-sourcify/bytecode-utils@1.3.12 - 2025-08-25
+
+- Update dependencies
+
+## @ethereum-sourcify/bytecode-utils@1.3.11 - 2025-08-11
+
+- update dependencies
+
+## @ethereum-sourcify/bytecode-utils@1.3.10 - 2025-08-04
+
+- update Node.js engine version to >=22.0.0 in package.json files (#2269)
+- update dependencies
+
+## @ethereum-sourcify/bytecode-utils@1.3.9 - 2025-07-09
+
+- update dependencies
+
+## @ethereum-sourcify/bytecode-utils@1.3.8 - 2025-06-18
+
+- Update packages
+
+## @ethereum-sourcify/bytecode-utils@1.3.7 - 2025-05-20
+
+- update dependencies
+
+## @ethereum-sourcify/bytecode-utils@1.3.6 - 2025-05-06
+
+- update dependencies
+
+## @ethereum-sourcify/bytecode-utils@1.3.5 - 2025-04-30
+
+- update dependencies
+
+## @ethereum-sourcify/bytecode-utils@1.3.4 - 2025-04-09
+
+- Update dependencies
+
+## @ethereum-sourcify/bytecode-utils@1.3.3 - 2025-03-19
+
+- Update dependencies
+
 ## @ethereum-sourcify/bytecode-utils@1.3.2 - 2025-02-18
 
 - update dependencies
@@ -80,4 +121,4 @@ No changes this release. This marks the start of the changelog for this module.
 ## Older releases
 
 Previously, the releases were not done one separate modules of Sourcify but for the repository as a whole.
-You can find the changelog for those releases in [older releases](https://github.com/ethereum/sourcify/releases) for this repository.
+You can find the changelog for those releases in [older releases](https://github.com/argotorg/sourcify/releases) for this repository.

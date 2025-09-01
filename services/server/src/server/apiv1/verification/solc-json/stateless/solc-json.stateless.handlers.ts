@@ -1,21 +1,20 @@
 import { Response, Request } from "express";
 import { extractFiles } from "../../verification.common";
 import {
-  checkFilesWithMetadata,
   ISolidityCompiler,
-  IVyperCompiler,
-  SolidityCheckedContract,
-  useAllSources,
+  SolidityCompilation,
+  SolidityJsonInput,
 } from "@ethereum-sourcify/lib-sourcify";
 import { BadRequestError } from "../../../../../common/errors";
-import { getResponseMatchFromMatch } from "../../../../common";
 import { Services } from "../../../../services/services";
 import { ChainRepository } from "../../../../../sourcify-chain-repository";
+import { getApiV1ResponseFromVerification } from "../../../controllers.common";
+import logger from "../../../../../common/logger";
+import { getContractPathFromSources } from "../../../../services/utils/parsing-util";
 
 export async function verifySolcJsonEndpoint(req: Request, res: Response) {
   const services = req.app.get("services") as Services;
   const solc = req.app.get("solc") as ISolidityCompiler;
-  const vyper = req.app.get("vyper") as IVyperCompiler;
   const chainRepository = req.app.get("chainRepository") as ChainRepository;
 
   const inputFiles = extractFiles(req, true);
@@ -25,7 +24,7 @@ export async function verifySolcJsonEndpoint(req: Request, res: Response) {
       "Only one Solidity JSON Input file at a time is allowed",
     );
 
-  let solcJson;
+  let solcJson: SolidityJsonInput;
   try {
     solcJson = JSON.parse(inputFiles[0].buffer.toString());
   } catch (error: any) {
@@ -33,64 +32,46 @@ export async function verifySolcJsonEndpoint(req: Request, res: Response) {
       `Couldn't parse JSON ${inputFiles[0].path}. Make sure the contents of the file are syntaxed correctly.`,
     );
   }
-  const compilerVersion = req.body.compilerVersion;
-  const contractName = req.body.contractName;
-  const chain = req.body.chain;
-  const address = req.body.address;
+  const compilerVersion = req.body?.compilerVersion;
+  const contractName = req.body?.contractName;
+  const chain = req.body?.chain;
+  const address = req.body?.address;
+  const creatorTxHash = req.body?.creatorTxHash;
 
-  const metadataAndSourcesPathBuffers =
-    await services.verification.getAllMetadataAndSourcesFromSolcJson(
-      solc,
-      solcJson,
-      compilerVersion,
-    );
+  logger.debug("Request to /verify/solc-json", {
+    chainId: chain,
+    address: address,
+    contractName: contractName,
+    compilerVersion: compilerVersion,
+    creatorTxHash: creatorTxHash,
+  });
 
-  const checkedContracts = await checkFilesWithMetadata(
-    solc,
-    vyper,
-    metadataAndSourcesPathBuffers,
+  const contractPath = getContractPathFromSources(
+    contractName,
+    solcJson.sources,
   );
-  const contractToVerify = checkedContracts.find(
-    (c) => c.name === contractName,
-  );
-  if (!contractToVerify) {
+  if (!contractPath) {
     throw new BadRequestError(
       `Couldn't find contract ${contractName} in the provided Solidity JSON Input file.`,
     );
   }
 
-  const match = await services.verification.verifyDeployed(
-    contractToVerify,
+  const compilation = new SolidityCompilation(solc, compilerVersion, solcJson, {
+    name: contractName,
+    path: contractPath,
+  });
+
+  // Verify the contract using the new verification flow
+  const verification = await services.verification.verifyFromCompilation(
+    compilation,
     chainRepository.sourcifyChainMap[chain],
     address,
-    req.body.creatorTxHash,
+    creatorTxHash,
   );
-  // Send to verification again with all source files.
-  if (match.runtimeMatch === "extra-file-input-bug") {
-    const contractWithAllSources = await useAllSources(
-      contractToVerify as SolidityCheckedContract,
-      metadataAndSourcesPathBuffers,
-    );
-    const tempMatch = await services.verification.verifyDeployed(
-      contractWithAllSources,
-      chainRepository.sourcifyChainMap[chain],
-      address, // Due to the old API taking an array of addresses.
-      req.body.creatorTxHash,
-    );
-    if (
-      tempMatch.runtimeMatch === "perfect" ||
-      tempMatch.creationMatch === "perfect"
-    ) {
-      await services.storage.storeMatch(contractToVerify, tempMatch);
-      return res.send({ result: [tempMatch] });
-    } else if (tempMatch.runtimeMatch === "extra-file-input-bug") {
-      throw new BadRequestError(
-        "It seems your contract's metadata hashes match but not the bytecodes. You should add all the files input to the compiler during compilation and remove all others. See the issue for more information: https://github.com/ethereum/sourcify/issues/618",
-      );
-    }
-  }
-  if (match.runtimeMatch || match.creationMatch) {
-    await services.storage.storeMatch(contractToVerify, match);
-  }
-  return res.send({ result: [getResponseMatchFromMatch(match)] }); // array is an old expected behavior (e.g. by frontend)
+
+  // Store the verification result
+  await services.storage.storeVerification(verification.export());
+
+  // Return the verification result
+  res.send({ result: [getApiV1ResponseFromVerification(verification)] }); // array is an old expected behavior (e.g. by frontend)
 }

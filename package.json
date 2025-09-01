@@ -1,14 +1,14 @@
 {
   "name": "sourcify-monorepo",
   "private": true,
-  "version": "1.4.7",
+  "version": "1.5.2",
   "description": "Monorepo containing all Sourcify packages, and services",
   "workspaces": [
     "packages/*",
     "services/*"
   ],
   "scripts": {
-    "build:clean": "rm -rf node_modules services/monitor/node_modules services/server/node_modules packages/bytecode-utils/node_modules/ packages/compilers/node_modules/ packages/lib-sourcify/node_modules/ && npm install && npx lerna run build",
+    "build:clean": "rm -rf node_modules services/monitor/node_modules services/database/node_modules services/server/node_modules packages/bytecode-utils/node_modules/ packages/compilers/node_modules/ packages/lib-sourcify/node_modules/ && npm install && npx lerna run build",
     "build:lerna": "lerna run build",
     "server:start": "cd services/server && node ./dist/server/cli.js",
     "monitor:start": "node ./services/monitor/dist/index.js",
@@ -20,7 +20,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ethereum/sourcify.git"
+    "url": "git+https://github.com/argotorg/sourcify.git"
   },
   "keywords": [
     "ethereum",
@@ -32,18 +32,18 @@
   "author": "sourcifyeth",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/ethereum/sourcify/issues"
+    "url": "https://github.com/argotorg/sourcify/issues"
   },
   "homepage": "https://sourcify.dev",
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",
     "eslint": "8.57.1",
-    "eslint-config-prettier": "9.1.0",
-    "lerna": "8.2.1",
-    "prettier": "3.5.3",
+    "eslint-config-prettier": "9.1.2",
+    "lerna": "8.2.3",
+    "prettier": "3.6.2",
     "ts-node": "10.9.2",
-    "typescript": "5.8.2"
+    "typescript": "5.9.2"
   },
   "optionalDependencies": {
     "fsevents": "2.3.3"

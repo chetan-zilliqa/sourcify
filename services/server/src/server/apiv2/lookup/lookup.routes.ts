@@ -1,18 +1,23 @@
-import { safeHandler } from "../../common";
 import {
   validateAddress,
   validateChainId,
   validateFieldsAndOmit,
 } from "../middlewares";
-import { getContractEndpoint, listContractsEndpoint } from "./lookup.handlers";
+import {
+  getContractAllChainsEndpoint,
+  getContractEndpoint,
+  listContractsEndpoint,
+} from "./lookup.handlers";
 
 import { Router } from "express";
 
 const router = Router();
 
 router
-  .route("/contracts/:chainId")
-  .get(validateChainId, safeHandler(listContractsEndpoint));
+  .route("/contract/all-chains/:address")
+  .get(validateAddress, getContractAllChainsEndpoint);
+
+router.route("/contracts/:chainId").get(validateChainId, listContractsEndpoint);
 
 router
   .route("/contract/:chainId/:address")
@@ -20,7 +25,7 @@ router
     validateChainId,
     validateAddress,
     validateFieldsAndOmit,
-    safeHandler(getContractEndpoint),
+    getContractEndpoint,
   );
 
 export default router;

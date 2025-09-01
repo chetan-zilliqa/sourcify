@@ -324,7 +324,14 @@ describe("/session", function () {
     const agent = chai.request.agent(serverFixture.server.app);
     agent
       .post("/session/input-files")
-      .attach("files", chainFixture.defaultContractModifiedSourceIpfs)
+      .attach(
+        "files",
+        Buffer.from(
+          JSON.stringify(
+            chainFixture.defaultContractMetadataWithModifiedIpfsHash,
+          ),
+        ),
+      )
       .then((res) => {
         assertAddressAndChainMissing(res, [], {
           "project:/contracts/Storage.sol": {
@@ -780,7 +787,7 @@ describe("/session", function () {
       .post("/session/input-solc-json")
       .attach("files", solcJsonBuffer);
 
-    assertValidationError(null, res, "compilerVersion");
+    assertValidationError(null, res, "body");
   });
 
   it("should verify a contract with Solidity standard input JSON", async () => {

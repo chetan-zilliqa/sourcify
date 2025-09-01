@@ -1,5 +1,6 @@
 import { exec } from 'child_process';
 import { logDebug, logError, logSilly } from '../logger';
+import { OutputError } from '@ethereum-sourcify/compilers-types';
 
 /**
  * Fetches a resource with an exponential timeout.
@@ -73,9 +74,15 @@ export function asyncExec(
         if (error) {
           reject(error);
         } else if (stderr) {
-          reject(
-            new Error(`Compiler process returned with errors:\n ${stderr}`),
-          );
+          // Vyper compilers <0.4.0 outputs warnings to stderr
+          // we handle this by checking if the stderr starts with "Warning:"
+          if (stderr.startsWith('Warning:')) {
+            resolve(stdout);
+          } else {
+            reject(
+              new Error(`Compiler process returned with errors:\n ${stderr}`),
+            );
+          }
         } else {
           resolve(stdout);
         }
@@ -88,4 +95,13 @@ export function asyncExec(
     child.stdin.write(inputStringified);
     child.stdin.end();
   });
+}
+
+export class CompilerError extends Error {
+  constructor(
+    message: string,
+    public errors: OutputError[],
+  ) {
+    super(message);
+  }
 }
